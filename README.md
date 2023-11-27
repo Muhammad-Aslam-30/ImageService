@@ -36,7 +36,8 @@ Below is the API endpoint for task 1 to get image URLs from the user and save th
 curl -X POST http://localhost:9000/api/images/ -H "Content-Type: application/json" -H "Authorization: Token YOUR_ACCESS_TOKEN" -d '{
   "image_urls": [
     "https://picsum.photos/id/1/200/300",
-    "https://picsum.photos/id/2/200/300"
+    "https://picsum.photos/id/2/200/300",
+    "https://picsum.photos/id/3/200/300"
   ]
 }'
 ```
