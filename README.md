@@ -13,14 +13,16 @@ The task is to implement a web service with a REST interface (preferably in pyth
 
 - Throughout operation 1-3, the key of images should always be the full url that was used in the original input list for operation 1
 
-# Image Download Service
-Tech stacks used:
+# Tech stacks used:
 - Python
 - Django Rest Framework
 - Postgresql
 
-# Cloud Based Implementation
-Cloud based approach architecture of this task has been provided in the JPG file "cloud-based-implementation" using AWS.
+# Implementation Architecture
+Local system approach architecture of this task has been has been provided in the JPG file "Implementation_Architecture"
+
+# Cloud Based Implementation Architecture
+Cloud based approach architecture of this task using AWS has been provided in the JPG file "Cloud_Based_Implementation_Architecture".
 
 # Added Features
 Apart from the given tasks, the following features has also been added.
