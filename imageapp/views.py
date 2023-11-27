@@ -14,13 +14,11 @@ from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
-from requests.exceptions import RequestException  # Add this import
+from requests.exceptions import RequestException
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from rest_framework.exceptions import APIException
 from django.db import models
-
-# Create your views here.
 
 class LoginAPI(APIView):
 
@@ -102,7 +100,7 @@ class ImageViewSet(viewsets.ModelViewSet):
                     raise APIException(detail="ValidationError: Invalid URL")
 
                 except Exception as e:
-                    # Handle other errors (e.g., file write errors)
+                    # Handle other errors (e.g: file write errors)
                     raise APIException(detail="Error processing image")
 
         return Response(status=status.HTTP_201_CREATED)
@@ -130,7 +128,7 @@ class ImageViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Image not downloaded and stored'}, status=404)
         
         except ValidationError as e:
-            # Handle validation error (e.g., invalid URL)
+            # Handle validation error (ex: invalid URL)
             return Response({'Validation error': str(e)}, status=400)
 
         except FileNotFoundError:
