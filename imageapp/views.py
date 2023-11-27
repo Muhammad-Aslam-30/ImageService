@@ -1,14 +1,9 @@
-from django.shortcuts import render
-from rest_framework import generics
 from rest_framework import viewsets
 from .models import Images
 from .serializer import ImageSerializer, RegisterSerializer, LoginSerializer
-from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework import status
 import requests
-from io import BytesIO
-from django.core.files import File
 import os
 import hashlib
 from django.http import HttpResponse
@@ -19,6 +14,11 @@ from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
+from requests.exceptions import RequestException  # Add this import
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
+from rest_framework.exceptions import APIException
+from django.db import models
 
 # Create your views here.
 
@@ -72,7 +72,6 @@ class ImageViewSet(viewsets.ModelViewSet):
         # Ensure the media directory exists
         media_directory = os.path.join("media")
         os.makedirs(media_directory, exist_ok=True)
-
         for url in image_urls:
             # Check if the URL is already in the database
             if not Images.objects.filter(url=url).exists():
@@ -90,40 +89,64 @@ class ImageViewSet(viewsets.ModelViewSet):
                     # Create Image instance and save the URL to the database
                     Images.objects.create(url=url, imagename=imagename)
 
+                except RequestException as e:
+                    # Handle HTTP request errors
+                    raise APIException(detail=f"Failed to download image from {url}")
+
+                except IntegrityError as e:
+                    # Handle database integrity error (ex: duplicate key violation)
+                    raise APIException(detail="IntegrityError: Duplicate key or database integrity violation")
+
+                except ValidationError as e:
+                    # Handle URL validation error
+                    raise APIException(detail="ValidationError: Invalid URL")
+
                 except Exception as e:
-                    # Handle download or save errors
-                    pass
+                    # Handle other errors (e.g., file write errors)
+                    raise APIException(detail="Error processing image")
 
         return Response(status=status.HTTP_201_CREATED)
 
     def retrieve(self, request, *args, **kwargs):
-        url = request.query_params.get('url', None)
+        try:
+            url = request.query_params.get('url', None)
+            if not url:
+                return Response({'error': 'Missing URL parameter'}, status=400)
+            if Images.objects.filter(url=url).exists():
+                instance = get_object_or_404(Images, url=url)
+                imagename = instance.imagename
 
-        if not url:
-            return Response({'error': 'Missing URL parameter'}, status=400)
-        if Images.objects.filter(url=url).exists():
-            instance = get_object_or_404(Images, url=url)
-            imagename = instance.imagename
+                media_directory = os.path.join("media")
+                image_path = os.path.join(media_directory, imagename)
 
-            media_directory = os.path.join("media")
-            image_path = os.path.join(media_directory, imagename)
+                if not os.path.exists(image_path):
+                    return Response({'error': 'Image not found in the media folder'}, status=404)
 
-            if not os.path.exists(image_path):
-                return Response({'error': 'Image not found in the media folder'}, status=404)
+                with open(image_path, 'rb') as f:
+                    response = HttpResponse(f.read(), content_type='image/jpeg')
+                    response['Content-Disposition'] = f'attachment; filename="{imagename}"'
+                    return response
+            else:
+                return Response({'error': 'Image not downloaded and stored'}, status=404)
+        
+        except ValidationError as e:
+            # Handle validation error (e.g., invalid URL)
+            return Response({'Validation error': str(e)}, status=400)
 
-            with open(image_path, 'rb') as f:
-                response = HttpResponse(f.read(), content_type='image/jpeg')
-                response['Content-Disposition'] = f'attachment; filename="{imagename}"'
-                return response
-        else:
-            return Response({'error': 'Image has not been stored already'}, status=404)
-    
+        except FileNotFoundError:
+            # Handle file not found error
+            return Response({'error': 'Image file not found in the media folder'}, status=404)
+
+        except Exception as e:
+            # Handle unexpected errors
+            return Response({'error': 'An unexpected error occurred'}, status=500)
+        
     def destroy(self, request, *args, **kwargs):
         url = request.query_params.get('url', None)
         if not url:
             return Response({'error': 'Missing URL parameter'}, status=400)
-        if Images.objects.filter(url=url).exists():
-            try:
+        try:
+            if Images.objects.filter(url=url).exists():
                 instance = get_object_or_404(Images, url=url)
                 imagename = instance.imagename
 
@@ -139,11 +162,27 @@ class ImageViewSet(viewsets.ModelViewSet):
                 # Delete the image file from the media folder
                 if os.path.exists(image_path):
                     os.remove(image_path)
+            else:
+                return Response({'error': 'Image not downloaded and stored'}, status=404)
+        
+        except models.ProtectedError:
+            # Handle protected error (ex: if there are related objects that prevent deletion)
+            return Response({'error': 'Cannot delete image due to related objects'}, status=400)
 
-            except Exception as e:
-                # Handle errors
-                pass
-        else:
-            return Response({'error': 'Image has not been stored already'}, status=404)
+        except FileNotFoundError:
+            # Handle file not found error
+            return Response({'error': 'Image file not found in the media folder'}, status=404)
+
+        except PermissionError:
+            # Handle permission error (ex: if the process has no permission to delete the file)
+            return Response({'error': 'Permission error during deletion'}, status=500)
+
+        except OSError as e:
+            # Handle OS error (ex: if the file cannot be removed)
+            return Response({'error': f'OS error during deletion: {str(e)}'}, status=500)
+
+        except Exception as e:
+            # Handle unexpected errors
+            return Response({'error': 'An unexpected error occurred during deletion'}, status=500)
 
         return Response(status=204)
