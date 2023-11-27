@@ -87,7 +87,7 @@ class RegisterAPI(APIView):
             }, status.HTTP_201_CREATED)
 
         except serializers.ValidationError as ve:
-            # Handle validation errors (e.g., unique constraint violation)
+            # Handle validation errors (ex: unique constraint violation)
             return Response({
                 'status': False,
                 'message': str(ve)
@@ -109,19 +109,20 @@ class ImageViewSet(viewsets.ModelViewSet):
     lookup_field = 'url'
 
     def create(self, request, *args, **kwargs):
+        try:
+            # Get the list of image URLs from the request data
+            image_urls = request.data.get('image_urls', [])
 
-        # Get the list of image URLs from the request data
-        image_urls = request.data.get('image_urls', [])
+            # Ensure the media directory exists
+            media_directory = os.path.join("media")
+            os.makedirs(media_directory, exist_ok=True)
 
-        # Ensure the media directory exists
-        media_directory = os.path.join("media")
-        os.makedirs(media_directory, exist_ok=True)
+            # Process each image URL in the list
+            for url in image_urls:
 
-        # Process each image URL in the list
-        for url in image_urls:
-            # Check if the URL is already in the database
-            if not Images.objects.filter(url=url).exists():
-                try:
+                # Check if the URL is already in the database
+                if not Images.objects.filter(url=url).exists():
+                        
                     # Make an HTTP request to get the image content
                     response = requests.get(url)
                     response.raise_for_status()
@@ -138,24 +139,24 @@ class ImageViewSet(viewsets.ModelViewSet):
                     # Create Image instance and save the URL to the database
                     Images.objects.create(url=url, imagename=imagename)
 
-                    # Return a success response
-                    return Response(status=status.HTTP_201_CREATED)
+            # Return a success response
+            return Response(status=status.HTTP_201_CREATED)
 
-                except RequestException as e:
-                    # Handle HTTP request errors
-                    raise APIException(detail=f"Failed to download image from {url}")
+        except RequestException as e:
+            # Handle HTTP request errors
+            raise APIException(detail=f"Failed to download image from {url}")
 
-                except IntegrityError as e:
-                    # Handle database integrity error (e.g., duplicate key violation)
-                    raise APIException(detail="IntegrityError: Duplicate key or database integrity violation")
+        except IntegrityError as e:
+            # Handle database integrity error (ex: duplicate key violation)
+            raise APIException(detail="IntegrityError: Duplicate key or database integrity violation")
 
-                except ValidationError as e:
-                    # Handle URL validation error
-                    raise APIException(detail="ValidationError: Invalid URL")
+        except ValidationError as e:
+            # Handle URL validation error
+            raise APIException(detail="ValidationError: Invalid URL")
 
-                except Exception as e:
-                    # Handle other errors (e.g., file write errors)
-                    raise APIException(detail="Error processing image")
+        except Exception as e:
+            # Handle other errors (ex: file write errors)
+            raise APIException(detail="Error processing image")
 
     def retrieve(self, request, *args, **kwargs):
 
